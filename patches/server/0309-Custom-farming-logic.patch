@@ -1,0 +1,119 @@
+From 0000000000000000000000000000000000000000 Mon Sep 17 00:00:00 2001
+From: Tofaa <82680183+Tofaa2@users.noreply.github.com>
+Date: Tue, 18 Apr 2023 23:02:42 +0400
+Subject: [PATCH] Custom farming logic
+
+
+diff --git a/src/main/java/net/minecraft/world/item/HoeItem.java b/src/main/java/net/minecraft/world/item/HoeItem.java
+index c4aec1e5135a79837918b692e75a7b55d5cffeb0..14c1c27b04a1c6af2b9926be32934c105432bd57 100644
+--- a/src/main/java/net/minecraft/world/item/HoeItem.java
++++ b/src/main/java/net/minecraft/world/item/HoeItem.java
+@@ -6,6 +6,8 @@ import com.mojang.datafixers.util.Pair;
+ import java.util.Map;
+ import java.util.function.Consumer;
+ import java.util.function.Predicate;
++
++import net.elementalcraft.api.event.PlayerHoeHarvestCropEvent;
+ import net.minecraft.core.BlockPos;
+ import net.minecraft.core.Direction;
+ import net.minecraft.sounds.SoundEvents;
+@@ -18,8 +20,10 @@ import net.minecraft.world.level.ItemLike;
+ import net.minecraft.world.level.Level;
+ import net.minecraft.world.level.block.Block;
+ import net.minecraft.world.level.block.Blocks;
++import net.minecraft.world.level.block.CropBlock;
+ import net.minecraft.world.level.block.state.BlockState;
+ import net.minecraft.world.level.gameevent.GameEvent;
++import org.bukkit.craftbukkit.event.CraftEventFactory;
+ 
+ public class HoeItem extends DiggerItem {
+     protected static final Map<Block, Pair<Predicate<UseOnContext>, Consumer<UseOnContext>>> TILLABLES = Maps.newHashMap(ImmutableMap.of(Blocks.GRASS_BLOCK, Pair.of(HoeItem::onlyIfAirAbove, changeIntoState(Blocks.FARMLAND.defaultBlockState())), Blocks.DIRT_PATH, Pair.of(HoeItem::onlyIfAirAbove, changeIntoState(Blocks.FARMLAND.defaultBlockState())), Blocks.DIRT, Pair.of(HoeItem::onlyIfAirAbove, changeIntoState(Blocks.FARMLAND.defaultBlockState())), Blocks.COARSE_DIRT, Pair.of(HoeItem::onlyIfAirAbove, changeIntoState(Blocks.DIRT.defaultBlockState())), Blocks.ROOTED_DIRT, Pair.of((useOnContext) -> {
+@@ -36,6 +40,30 @@ public class HoeItem extends DiggerItem {
+         BlockPos blockPos = context.getClickedPos();
+         // Purpur start
+         Block clickedBlock = level.getBlockState(blockPos).getBlock();
++
++        if (clickedBlock instanceof CropBlock cropBlock) {
++            if (context.getPlayer() == null) return InteractionResult.FAIL;
++            BlockState state = level.getBlockState(blockPos);
++            if (cropBlock.isMaxAge(state)) {
++                PlayerHoeHarvestCropEvent event = CraftEventFactory.callEvent(new PlayerHoeHarvestCropEvent(
++                        (org.bukkit.entity.Player) context.getPlayer().getBukkitEntity(),
++                        context.getItemInHand().asBukkitCopy(),
++                        level.getWorld().getBlockAt(blockPos.getX(), blockPos.getY(), blockPos.getZ())
++                ));
++                if (event.isCancelled()) return InteractionResult.FAIL;
++                cropBlock.playerDestroy(
++                        level,
++                        context.getPlayer(),
++                        blockPos,
++                        state,
++                        level.getBlockEntity(blockPos),
++                        context.getItemInHand()
++                );
++                level.setBlock(blockPos, cropBlock.defaultBlockState(), 11); // 11 means update neighbors and send to clients
++            }
++            return InteractionResult.SUCCESS;
++        }
++
+         var tillable = level.purpurConfig.hoeTillables.get(level.getBlockState(blockPos).getBlock());
+         if (tillable == null) { return InteractionResult.PASS; } else {
+             Predicate<UseOnContext> predicate = tillable.condition().predicate();
+diff --git a/src/main/java/org/spigotmc/RestartCommand.java b/src/main/java/org/spigotmc/RestartCommand.java
+index 160115bf8a153ff981ba308599d22c4c08026fb6..21b47fe60399935c5b943a539d029d4d3d4f8ce4 100644
+--- a/src/main/java/org/spigotmc/RestartCommand.java
++++ b/src/main/java/org/spigotmc/RestartCommand.java
+@@ -1,7 +1,8 @@
+ package org.spigotmc;
+ 
+ import java.io.File;
+-import java.util.List;
++
++import net.elementalcraft.api.OperatingSystem;
+ import net.minecraft.server.MinecraftServer;
+ import net.minecraft.server.level.ServerPlayer;
+ import org.bukkit.command.Command;
+@@ -23,14 +24,7 @@ public class RestartCommand extends Command
+     {
+         if ( testPermission( sender ) )
+         {
+-            MinecraftServer.getServer().processQueue.add( new Runnable()
+-            {
+-                @Override
+-                public void run()
+-                {
+-                    RestartCommand.restart();
+-                }
+-            } );
++            MinecraftServer.getServer().processQueue.add(RestartCommand::restart);
+         }
+         return true;
+     }
+@@ -72,8 +66,7 @@ public class RestartCommand extends Command
+         if ( MinecraftServer.getServer().isSameThread() )
+         {
+             // Kick all players
+-            for ( ServerPlayer p : com.google.common.collect.ImmutableList.copyOf( MinecraftServer.getServer().getPlayerList().players ) )
+-            {
++            for ( ServerPlayer p : com.google.common.collect.ImmutableList.copyOf( MinecraftServer.getServer().getPlayerList().players ) ) {
+                 p.connection.disconnect(SpigotConfig.restartMessage, org.bukkit.event.player.PlayerKickEvent.Cause.RESTART_COMMAND); // Paper - kick event reason (cause is never used))
+             }
+             // Give the socket a chance to send the packets
+@@ -152,12 +145,11 @@ public class RestartCommand extends Command
+                     try
+                     {
+                         String os = System.getProperty( "os.name" ).toLowerCase(java.util.Locale.ENGLISH);
+-                        if ( os.contains( "win" ) )
+-                        {
+-                            Runtime.getRuntime().exec( "cmd /c start " + restartScript );
+-                        } else
+-                        {
+-                            Runtime.getRuntime().exec( "sh " + restartScript );
++                        if (OperatingSystem.isWindows()) {
++                            Runtime.getRuntime().exec("cmd /c start " + restartScript);
++                        }
++                        else {
++                            Runtime.getRuntime().exec("sh " + restartScript);
+                         }
+                     } catch ( Exception e )
+                     {

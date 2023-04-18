@@ -1,0 +1,224 @@
+From 0000000000000000000000000000000000000000 Mon Sep 17 00:00:00 2001
+From: Tofaa <82680183+Tofaa2@users.noreply.github.com>
+Date: Tue, 18 Apr 2023 22:52:40 +0400
+Subject: [PATCH] Custom Hoe and Potion events and OS Api
+
+
+diff --git a/src/main/java/net/elementalcraft/api/OperatingSystem.java b/src/main/java/net/elementalcraft/api/OperatingSystem.java
+new file mode 100644
+index 0000000000000000000000000000000000000000..864c2945a755a89b7ed0f5d38f190a519e97fc53
+--- /dev/null
++++ b/src/main/java/net/elementalcraft/api/OperatingSystem.java
+@@ -0,0 +1,92 @@
++package net.elementalcraft.api;
++
++import java.util.Locale;
++
++/**
++ * Represents various information regarding
++ * operating system this JVM is running on.
++ */
++public final class OperatingSystem {
++
++    private OperatingSystem() {}
++
++    /**
++     * @return true if the operating system is 64-bit
++     */
++    public static boolean isX64() {
++        return getArch().contains("64");
++    }
++
++    /**
++     * @return true if the operating system is {@link Type#WINDOWS}
++     */
++    public static boolean isWindows() {
++        return getOSType() == Type.WINDOWS;
++    }
++
++    /**
++     * @return true if the operating system is {@link Type#LINUX}
++     */
++    public static boolean isLinux() {
++        return getOSType() == Type.LINUX;
++    }
++
++    /**
++     * @return true if the operating system is {@link Type#MAC}
++     */
++    public static boolean isMac() {
++        return getOSType() == Type.MAC;
++    }
++
++    /**
++     * @return true if the operating system is {@link Type#SOLARIS}
++     */
++    public static boolean isSolaris() {
++        return getOSType() == Type.SOLARIS;
++    }
++
++    /**
++     * @return the type of operating system
++     */
++    public static Type getOSType(){
++        String os = getName().toLowerCase(Locale.ENGLISH);
++        if(os.contains("win")) return Type.WINDOWS;
++        else if(os.contains("mac")) return Type.MAC;
++        else if(os.contains("solaris") || os.contains("sunos")) return Type.SOLARIS;
++        else if(os.contains("linux") || os.contains("unix")) return Type.LINUX;
++        else return Type.UNKNOWN;
++    }
++
++    /**
++     * @return the architecture of the operating system
++     */
++    public static String getArch() {
++        return System.getProperty("os.arch");
++    }
++
++    /**
++     * @return the name of the operating system
++     */
++    public static String getName() {
++        return System.getProperty("os.name");
++    }
++
++    /**
++     * @return the version of the operating system
++     */
++    public static String getVersion() {
++        return System.getProperty("os.version");
++    }
++
++    /**
++     * Represents various types of operating systems.
++     */
++    public enum Type {
++        WINDOWS,
++        LINUX,
++        MAC,
++        SOLARIS,
++        UNKNOWN;
++    }
++
++}
+diff --git a/src/main/java/net/elementalcraft/api/event/PlayerHoeHarvestCropEvent.java b/src/main/java/net/elementalcraft/api/event/PlayerHoeHarvestCropEvent.java
+new file mode 100644
+index 0000000000000000000000000000000000000000..5511eae1d682e8a510aae9417d2bdc4dec772473
+--- /dev/null
++++ b/src/main/java/net/elementalcraft/api/event/PlayerHoeHarvestCropEvent.java
+@@ -0,0 +1,58 @@
++package net.elementalcraft.api.event;
++
++import org.bukkit.block.Block;
++import org.bukkit.entity.Player;
++import org.bukkit.event.Cancellable;
++import org.bukkit.event.HandlerList;
++import org.bukkit.event.player.PlayerEvent;
++import org.bukkit.inventory.ItemStack;
++import org.jetbrains.annotations.NotNull;
++
++public class PlayerHoeHarvestCropEvent extends PlayerEvent implements Cancellable {
++
++    private static final HandlerList handlers = new HandlerList();
++
++    private final ItemStack hoe;
++    private final Block crop;
++    private boolean cancelled = false;
++
++    public PlayerHoeHarvestCropEvent(
++            @NotNull Player player,
++            @NotNull ItemStack hoe,
++            @NotNull Block crop
++    ) {
++        super(player);
++        this.hoe = hoe;
++        this.crop = crop;
++    }
++
++    /**
++     * @return the hoe used to harvest the crop
++     */
++    public @NotNull ItemStack getHoe() {
++        return hoe;
++    }
++
++    /**
++     * @return the crop that was harvested
++     */
++    public @NotNull Block getCrop() {
++        return crop;
++    }
++
++    @Override
++    public boolean isCancelled() {
++        return cancelled;
++    }
++
++    @Override
++    public void setCancelled(boolean cancelled) {
++        this.cancelled = cancelled;
++    }
++
++    @NotNull
++    @Override
++    public HandlerList getHandlers() {
++        return handlers;
++    }
++}
+diff --git a/src/main/java/net/elementalcraft/api/event/SplashPotionConsumeEvent.java b/src/main/java/net/elementalcraft/api/event/SplashPotionConsumeEvent.java
+new file mode 100644
+index 0000000000000000000000000000000000000000..1c187e61ea5821d0458919146fbc4760f98e855f
+--- /dev/null
++++ b/src/main/java/net/elementalcraft/api/event/SplashPotionConsumeEvent.java
+@@ -0,0 +1,50 @@
++package net.elementalcraft.api.event;
++
++import org.bukkit.entity.Player;
++import org.bukkit.event.Cancellable;
++import org.bukkit.event.HandlerList;
++import org.bukkit.event.player.PlayerEvent;
++import org.bukkit.inventory.ItemStack;
++import org.jetbrains.annotations.NotNull;
++
++public class SplashPotionConsumeEvent extends PlayerEvent implements Cancellable {
++
++    private static final HandlerList handlers = new HandlerList();
++
++    private final ItemStack splashPotion;
++    private boolean cancelled = false;
++
++    public SplashPotionConsumeEvent(
++            @NotNull Player player,
++            @NotNull ItemStack splashPotion
++    ) {
++        super(player);
++        this.splashPotion = splashPotion;
++    }
++
++    /**
++     * @return the splash potion that was consumed
++     */
++    @NotNull
++    public ItemStack getSplashPotion() {
++        return splashPotion;
++    }
++
++    @Override
++    public void setCancelled(boolean cancelled) {
++        this.cancelled = cancelled;
++    }
++
++    @Override
++    public boolean isCancelled() {
++        return cancelled;
++    }
++
++    @NotNull
++    @Override
++    public HandlerList getHandlers() {
++        return handlers;
++    }
++
++
++}

@@ -1,0 +1,72 @@
+From 0000000000000000000000000000000000000000 Mon Sep 17 00:00:00 2001
+From: Tofaa <82680183+Tofaa2@users.noreply.github.com>
+Date: Wed, 19 Apr 2023 00:15:23 +0400
+Subject: [PATCH] Instant splash potion logic
+
+
+diff --git a/src/main/java/org/bukkit/craftbukkit/event/CraftEventFactory.java b/src/main/java/org/bukkit/craftbukkit/event/CraftEventFactory.java
+index a60948f4085232082f205ad4f0f627a28342bd36..529b15e321903f9369128505edfeef1e96db6418 100644
+--- a/src/main/java/org/bukkit/craftbukkit/event/CraftEventFactory.java
++++ b/src/main/java/org/bukkit/craftbukkit/event/CraftEventFactory.java
+@@ -45,6 +45,8 @@ import net.minecraft.world.inventory.AbstractContainerMenu;
+ import net.minecraft.world.inventory.MerchantMenu;
+ import net.minecraft.world.item.ItemStack;
+ import net.minecraft.world.item.Items;
++import net.minecraft.world.item.alchemy.Potion;
++import net.minecraft.world.item.alchemy.PotionUtils;
+ import net.minecraft.world.item.context.UseOnContext;
+ import net.minecraft.world.level.ChunkPos;
+ import net.minecraft.world.level.Explosion;
+@@ -533,12 +535,8 @@ public class CraftEventFactory {
+             blockClicked = craftWorld.getBlockAt(position.getX(), position.getY(), position.getZ());
+         } else {
+             switch (action) {
+-                case LEFT_CLICK_BLOCK:
+-                    action = Action.LEFT_CLICK_AIR;
+-                    break;
+-                case RIGHT_CLICK_BLOCK:
+-                    action = Action.RIGHT_CLICK_AIR;
+-                    break;
++                case LEFT_CLICK_BLOCK -> action = Action.LEFT_CLICK_AIR;
++                case RIGHT_CLICK_BLOCK -> action = Action.RIGHT_CLICK_AIR;
+             }
+         }
+         BlockFace blockFace = CraftBlock.notchToBlockFace(direction);
+@@ -546,10 +544,36 @@ public class CraftEventFactory {
+         if (itemInHand.getType() == Material.AIR || itemInHand.getAmount() == 0) {
+             itemInHand = null;
+         }
+-
+         // Paper start
+         Location interactionPoint =  hitVec == null ? null : new Location(craftWorld, hitVec.x, hitVec.y, hitVec.z);
+         PlayerInteractEvent event = new PlayerInteractEvent(player, action, itemInHand, blockClicked, blockFace, (hand == null) ? null : ((hand == InteractionHand.OFF_HAND) ? EquipmentSlot.OFF_HAND : EquipmentSlot.HAND), interactionPoint);
++
++        if (
++                itemInHand != null &&
++                itemInHand.getType() == Material.SPLASH_POTION &&
++                (action == Action.RIGHT_CLICK_AIR || action == Action.RIGHT_CLICK_BLOCK)
++        ) {
++            Potion potion = PotionUtils.getPotion(itemstack);
++            potion.getEffects().forEach(effect -> {
++                if (who.hasEffect(effect.getEffect())) {
++                    who.removeEffect(effect.getEffect());
++                }
++                who.addEffect(new MobEffectInstance(effect.getEffect(), effect.getDuration(), effect.getAmplifier(), effect.isAmbient(), effect.isVisible()));
++            });
++            if (!who.getAbilities().instabuild) {
++                // Remove the potion item
++                ItemStack minusOneOrAir = itemstack.copy();
++                minusOneOrAir.shrink(1); // Remove one from the stack
++                if (minusOneOrAir.isEmpty()) {
++                    minusOneOrAir = ItemStack.EMPTY;
++                }
++                who.getInventory().setItem(who.getInventory().selected, minusOneOrAir);
++            }
++            event.setCancelled(true);
++            return event;
++        }
++
++
+         // Paper end
+         if (cancelledBlock) {
+             event.setUseInteractedBlock(Event.Result.DENY);
