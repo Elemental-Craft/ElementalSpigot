@@ -1,0 +1,18 @@
+From 0000000000000000000000000000000000000000 Mon Sep 17 00:00:00 2001
+From: Tofaa <82680183+Tofaa2@users.noreply.github.com>
+Date: Thu, 20 Apr 2023 12:33:55 +0400
+Subject: [PATCH] Api fixes
+
+
+diff --git a/src/main/java/org/bukkit/plugin/java/LibraryLoader.java b/src/main/java/org/bukkit/plugin/java/LibraryLoader.java
+index ee83ecb054099cb85168a9499dfe967a0a9ec796..bc5fceeb513858e5832864df63dfa47a8f9b926f 100644
+--- a/src/main/java/org/bukkit/plugin/java/LibraryLoader.java
++++ b/src/main/java/org/bukkit/plugin/java/LibraryLoader.java
+@@ -41,7 +41,6 @@ import org.jetbrains.annotations.Nullable;
+ public class LibraryLoader
+ // Paper end
+ {
+-
+     private final Logger logger;
+     private final RepositorySystem repository;
+     private final DefaultRepositorySystemSession session;
