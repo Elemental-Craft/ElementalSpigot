@@ -94,9 +94,10 @@ tasks.generateDevelopmentBundle {
 allprojects {
     publishing {
         repositories {
-            maven("https://repo.purpurmc.org/snapshots") {
-                name = "purpur"
+            maven("http://162.55.70.227:6379/private") {
+                name = "mcServer"
                 credentials(PasswordCredentials::class)
+                isAllowInsecureProtocol = true
             }
         }
     }
