@@ -1,0 +1,290 @@
+From 0000000000000000000000000000000000000000 Mon Sep 17 00:00:00 2001
+From: Tofaa <82680183+Tofaa2@users.noreply.github.com>
+Date: Wed, 19 Apr 2023 11:50:49 +0400
+Subject: [PATCH] Various Performance Enhancements and fixes
+
+
+diff --git a/src/main/java/net/minecraft/server/Bootstrap.java b/src/main/java/net/minecraft/server/Bootstrap.java
+index a1192d1f6b99669f843e8d9a8928ff0e8c030559..93a8a1c6f960b941a8f2ccefcac0a8a53c13cf5c 100644
+--- a/src/main/java/net/minecraft/server/Bootstrap.java
++++ b/src/main/java/net/minecraft/server/Bootstrap.java
+@@ -172,7 +172,7 @@ public class Bootstrap {
+     }
+ 
+     public static Set<String> getMissingTranslations() {
+-        Set<String> set = new TreeSet();
++        Set<String> set = new TreeSet<>();
+ 
+         Bootstrap.checkTranslations(BuiltInRegistries.ATTRIBUTE, Attribute::getDescriptionId, set);
+         Bootstrap.checkTranslations(BuiltInRegistries.ENTITY_TYPE, EntityType::getDescriptionId, set);
+diff --git a/src/main/java/net/minecraft/server/Main.java b/src/main/java/net/minecraft/server/Main.java
+index cdbf10339a8e8846a8c364de483a0ccd95cd225a..a3de6750e899e5b5da999df314745e48bd67b744 100644
+--- a/src/main/java/net/minecraft/server/Main.java
++++ b/src/main/java/net/minecraft/server/Main.java
+@@ -304,12 +304,12 @@ public class Main {
+                 */dedicatedserver1.setDemo(optionset.has("demo"));/* // Paper - Restore setting the demo mode
+                 dedicatedserver1.setId((String) optionset.valueOf(optionspec12));
+                 */
+-                boolean flag1 = !optionset.has("nogui") && !optionset.nonOptionArguments().contains("nogui");
+-
+-                if(!Boolean.parseBoolean(System.getenv().getOrDefault("PAPER_DISABLE_SERVER_GUI", String.valueOf(false)))) // Paper
+-                if (flag1 && !GraphicsEnvironment.isHeadless()) {
+-                    dedicatedserver1.showGui();
+-                }
++//                boolean flag1 = !optionset.has("nogui") && !optionset.nonOptionArguments().contains("nogui");
++//
++//                if(!Boolean.parseBoolean(System.getenv().getOrDefault("PAPER_DISABLE_SERVER_GUI", String.valueOf(false)))) // Paper
++//                if (flag1 && !GraphicsEnvironment.isHeadless()) {
++//                    dedicatedserver1.showGui();
++//                }
+ 
+                 if (optionset.has("port")) {
+                     int port = (Integer) optionset.valueOf("port");
+@@ -399,7 +399,7 @@ public class Main {
+             } else {
+                 try {
+                     Thread.sleep(1000L);
+-                } catch (InterruptedException interruptedexception) {
++                } catch (InterruptedException ignored) {
+                     ;
+                 }
+             }
+diff --git a/src/main/java/net/minecraft/server/MinecraftServer.java b/src/main/java/net/minecraft/server/MinecraftServer.java
+index beb05039926e1fb7a656dfcd0c503f82db67fc46..cccb3c1086d578c4a30fa8bb56d8b95493b0caba 100644
+--- a/src/main/java/net/minecraft/server/MinecraftServer.java
++++ b/src/main/java/net/minecraft/server/MinecraftServer.java
+@@ -199,7 +199,7 @@ public abstract class MinecraftServer extends ReentrantBlockableEventLoop<TickTa
+     private static MinecraftServer SERVER; // Paper
+     public static final Logger LOGGER = LogUtils.getLogger();
+     public static final net.kyori.adventure.text.logger.slf4j.ComponentLogger COMPONENT_LOGGER = net.kyori.adventure.text.logger.slf4j.ComponentLogger.logger(LOGGER.getName()); // Paper
+-    public static final String VANILLA_BRAND = "vanilla";
++    public static final String VANILLA_BRAND = "elemental";
+     private static final float AVERAGE_TICK_TIME_SMOOTHING = 0.8F;
+     private static final int TICK_STATS_SPAN = 100;
+     public static final int MS_PER_TICK = 50;
+@@ -320,9 +320,9 @@ public abstract class MinecraftServer extends ReentrantBlockableEventLoop<TickTa
+     public gg.pufferfish.pufferfish.util.AsyncExecutor mobSpawnExecutor = new gg.pufferfish.pufferfish.util.AsyncExecutor("MobSpawning"); // Pufferfish - optimize mob spawning
+ 
+     public static <S extends MinecraftServer> S spin(Function<Thread, S> serverFactory) {
+-        AtomicReference<S> atomicreference = new AtomicReference();
++        AtomicReference<S> atomicreference = new AtomicReference<>();
+         Thread thread = new io.papermc.paper.util.TickThread(() -> { // Paper - rewrite chunk system
+-            ((MinecraftServer) atomicreference.get()).runServer();
++            atomicreference.get().runServer();
+         }, "Server thread");
+ 
+         thread.setUncaughtExceptionHandler((thread1, throwable) -> {
+@@ -935,7 +935,7 @@ public abstract class MinecraftServer extends ReentrantBlockableEventLoop<TickTa
+                 this.getRunningThread().stop();
+                 try {
+                     Thread.sleep(1);
+-                } catch (InterruptedException e) {}
++                } catch (InterruptedException ignored) {}
+             }
+         }
+         // Paper end
+@@ -1264,9 +1264,7 @@ public abstract class MinecraftServer extends ReentrantBlockableEventLoop<TickTa
+ 
+         for (Throwable throwable1 = throwable; throwable1 != null; throwable1 = throwable1.getCause()) {
+             if (throwable1 instanceof ReportedException) {
+-                ReportedException reportedexception1 = (ReportedException) throwable1;
+-
+-                reportedexception = reportedexception1;
++                reportedexception = (ReportedException) throwable1;
+             }
+         }
+ 
+@@ -1349,11 +1347,8 @@ public abstract class MinecraftServer extends ReentrantBlockableEventLoop<TickTa
+         } else {
+             boolean ret = false; // Paper - force execution of all worlds, do not just bias the first
+             if (this.haveTime()) {
+-                Iterator iterator = this.getAllLevels().iterator();
+-
+-                while (iterator.hasNext()) {
+-                    ServerLevel worldserver = (ServerLevel) iterator.next();
+ 
++                for (ServerLevel worldserver : this.getAllLevels()) {
+                     if (worldserver.getChunkSource().pollTask()) {
+                         ret = true; // Paper - force execution of all worlds, do not just bias the first
+                     }
+@@ -1899,7 +1894,7 @@ public abstract class MinecraftServer extends ReentrantBlockableEventLoop<TickTa
+ 
+     public abstract boolean isCommandBlockEnabled();
+ 
+-    public String getMotd() {
++    public @org.jetbrains.annotations.Nullable String getMotd() {
+         return this.motd;
+     }
+ 
+@@ -2396,29 +2391,22 @@ public abstract class MinecraftServer extends ReentrantBlockableEventLoop<TickTa
+         try {
+             String s = System.getProperty("java.class.path");
+             String s1 = System.getProperty("path.separator");
+-            Iterator iterator = Splitter.on(s1).split(s).iterator();
+-
+-            while (iterator.hasNext()) {
+-                String s2 = (String) iterator.next();
+ 
++            for (String s2 : Splitter.on(s1).split(s)) {
+                 bufferedwriter.write(s2);
+                 bufferedwriter.write("\n");
+             }
+         } catch (Throwable throwable) {
+-            if (bufferedwriter != null) {
+-                try {
+-                    bufferedwriter.close();
+-                } catch (Throwable throwable1) {
+-                    throwable.addSuppressed(throwable1);
+-                }
++            try {
++                bufferedwriter.close();
++            } catch (Throwable throwable1) {
++                throwable.addSuppressed(throwable1);
+             }
+ 
+             throw throwable;
+         }
+ 
+-        if (bufferedwriter != null) {
+-            bufferedwriter.close();
+-        }
++        bufferedwriter.close();
+ 
+     }
+ 
+@@ -2440,20 +2428,16 @@ public abstract class MinecraftServer extends ReentrantBlockableEventLoop<TickTa
+                 bufferedwriter.write(10);
+             }
+         } catch (Throwable throwable) {
+-            if (bufferedwriter != null) {
+-                try {
+-                    bufferedwriter.close();
+-                } catch (Throwable throwable1) {
+-                    throwable.addSuppressed(throwable1);
+-                }
++            try {
++                bufferedwriter.close();
++            } catch (Throwable throwable1) {
++                throwable.addSuppressed(throwable1);
+             }
+ 
+             throw throwable;
+         }
+ 
+-        if (bufferedwriter != null) {
+-            bufferedwriter.close();
+-        }
++        bufferedwriter.close();
+ 
+     }
+ 
+@@ -2502,16 +2486,12 @@ public abstract class MinecraftServer extends ReentrantBlockableEventLoop<TickTa
+                 throw throwable1;
+             }
+ 
+-            if (bufferedwriter != null) {
+-                bufferedwriter.close();
+-            }
++            bufferedwriter.close();
+ 
+             return;
+         }
+ 
+-        if (bufferedwriter != null) {
+-            bufferedwriter.close();
+-        }
++        bufferedwriter.close();
+ 
+     }
+ 
+diff --git a/src/main/java/net/minecraft/server/PlayerAdvancements.java b/src/main/java/net/minecraft/server/PlayerAdvancements.java
+index 3919d9c193abcfd8b97dfb0ceb38638440f60fbe..a39ce157fe2f73b5c06ca2c2139c826d7eadcd71 100644
+--- a/src/main/java/net/minecraft/server/PlayerAdvancements.java
++++ b/src/main/java/net/minecraft/server/PlayerAdvancements.java
+@@ -110,11 +110,8 @@ public class PlayerAdvancements {
+     }
+ 
+     private void checkForAutomaticTriggers(ServerAdvancementManager advancementLoader) {
+-        Iterator iterator = advancementLoader.getAllAdvancements().iterator();
+-
+-        while (iterator.hasNext()) {
+-            Advancement advancement = (Advancement) iterator.next();
+ 
++        for (Advancement advancement : advancementLoader.getAllAdvancements()) {
+             if (advancement.getCriteria().isEmpty()) {
+                 this.award(advancement, "");
+                 advancement.getRewards().grant(this.player);
+diff --git a/src/main/java/net/minecraft/server/gui/MinecraftServerGui.java b/src/main/java/net/minecraft/server/gui/MinecraftServerGui.java
+index c07918aa1ed2469ad7a76a0add60ab648ff7f421..ea1cb4441cba1c33d70ab36bda93a66ed30e7612 100644
+--- a/src/main/java/net/minecraft/server/gui/MinecraftServerGui.java
++++ b/src/main/java/net/minecraft/server/gui/MinecraftServerGui.java
+@@ -47,7 +47,7 @@ public class MinecraftServerGui extends JComponent {
+     public static MinecraftServerGui showFrameFor(final DedicatedServer server) {
+         try {
+             UIManager.setLookAndFeel(UIManager.getSystemLookAndFeelClassName());
+-        } catch (Exception exception) {
++        } catch (Exception ignored) {
+             ;
+         }
+ 
+diff --git a/src/main/java/org/bukkit/craftbukkit/CraftChunk.java b/src/main/java/org/bukkit/craftbukkit/CraftChunk.java
+index 79bbb4de18459caa2d7ca11f4f4b0d0b5df468a4..feea8d59bd7902adb58da3dc2056d610504bb409 100644
+--- a/src/main/java/org/bukkit/craftbukkit/CraftChunk.java
++++ b/src/main/java/org/bukkit/craftbukkit/CraftChunk.java
+@@ -47,6 +47,7 @@ import org.bukkit.craftbukkit.block.data.CraftBlockData;
+ import org.bukkit.entity.Entity;
+ import org.bukkit.persistence.PersistentDataContainer;
+ import org.bukkit.plugin.Plugin;
++import org.jetbrains.annotations.NotNull;
+ 
+ public class CraftChunk implements Chunk {
+     private final ServerLevel worldServer;
+@@ -149,7 +150,7 @@ public class CraftChunk implements Chunk {
+     }
+ 
+     @Override
+-    public Collection<BlockState> getTileEntities(Predicate<Block> blockPredicate, boolean useSnapshot) {
++    public @NotNull Collection<BlockState> getTileEntities(@NotNull Predicate<Block> blockPredicate, boolean useSnapshot) {
+         Preconditions.checkNotNull(blockPredicate, "blockPredicate");
+         if (!this.isLoaded()) {
+             this.getWorld().getChunkAt(this.x, this.z); // Transient load for this tick
+@@ -217,7 +218,7 @@ public class CraftChunk implements Chunk {
+     }
+ 
+     @Override
+-    public boolean addPluginChunkTicket(Plugin plugin) {
++    public boolean addPluginChunkTicket(@NotNull Plugin plugin) {
+         return this.getWorld().addPluginChunkTicket(this.getX(), this.getZ(), plugin);
+     }
+ 
+@@ -227,7 +228,7 @@ public class CraftChunk implements Chunk {
+     }
+ 
+     @Override
+-    public Collection<Plugin> getPluginChunkTickets() {
++    public @NotNull Collection<Plugin> getPluginChunkTickets() {
+         return this.getWorld().getPluginChunkTickets(this.getX(), this.getZ());
+     }
+ 
+@@ -244,9 +245,7 @@ public class CraftChunk implements Chunk {
+     }
+ 
+     @Override
+-    public boolean contains(BlockData block) {
+-        Preconditions.checkArgument(block != null, "Block cannot be null");
+-
++    public boolean contains(@NotNull BlockData block) {
+         Predicate<net.minecraft.world.level.block.state.BlockState> nms = Predicates.equalTo(((CraftBlockData) block).getState());
+         for (LevelChunkSection section : this.getHandle(ChunkStatus.FULL).getSections()) {
+             if (section != null && section.getStates().maybeHas(nms)) {
+@@ -258,9 +257,7 @@ public class CraftChunk implements Chunk {
+     }
+ 
+     @Override
+-    public boolean contains(Biome biome) {
+-        Preconditions.checkArgument(biome != null, "Biome cannot be null");
+-
++    public boolean contains(@NotNull Biome biome) {
+         ChunkAccess chunk = this.getHandle(ChunkStatus.BIOMES);
+         Predicate<Holder<net.minecraft.world.level.biome.Biome>> nms = Predicates.equalTo(CraftBlock.biomeToBiomeBase(chunk.biomeRegistry, biome));
+         for (LevelChunkSection section : chunk.getSections()) {
